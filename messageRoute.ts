@@ -34,6 +34,9 @@ const steps: RegistrationStep[] = [
 const dobRegex = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
 const router = Router();
+router.get("/", (_req: Request, res: Response) => {
+  res.send("Chatbot API is running.");
+});
 
 router.post("/message", async (req: Request, res: Response) => {
   const { userId, message } = req.body ?? {};
@@ -219,10 +222,17 @@ async function saveRegistration(
   data: RegistrationData,
   userId: string
 ): Promise<void> {
-  const { error } = await supabase.from("registrations").insert({
+  const payload = {
     user_id: userId,
-    ...data,
-  });
+    name: data.name,
+    date_of_birth: data.dateOfBirth,
+    gender: data.gender,
+    uses_budget_app: data.usesBudgetApp,
+    budget_app_name: data.usesBudgetApp ? data.budgetAppName ?? null : null,
+    completed: true,
+  };
+
+  const { error } = await supabase.from("registrations").insert(payload);
 
   if (error) {
     console.error("Failed to save registration:", error);
