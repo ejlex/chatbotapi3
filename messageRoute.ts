@@ -53,16 +53,15 @@ router.post("/message", async (req: Request, res: Response) => {
       completed: false,
     };
 
+  sessions[userId] = session;
+
   if (session.completed) {
-    // Start a fresh session if the user messages again after completion.
-    sessions[userId] = {
-      data: {},
-      currentStep: "name",
-      completed: false,
-    };
-    session = sessions[userId];
-  } else {
-    sessions[userId] = session;
+    const reply = await buildWelcomeMessage(session.data);
+    return res.json({
+      reply,
+      done: true,
+      data: session.data,
+    });
   }
 
   const text =
@@ -90,10 +89,12 @@ router.post("/message", async (req: Request, res: Response) => {
     };
 
     session.completed = true;
+    session.data = finalData;
     await saveRegistration(finalData, userId);
+    const reply = await buildWelcomeMessage(finalData);
 
     return res.json({
-      reply: "Registration complete!",
+      reply,
       done: true,
       data: finalData,
     });
@@ -237,6 +238,40 @@ async function saveRegistration(
   if (error) {
     console.error("Failed to save registration:", error);
     throw new Error("Failed to save registration");
+  }
+}
+
+async function buildWelcomeMessage(
+  data: Partial<RegistrationData>
+): Promise<string> {
+  const name = data.name ?? "friend";
+  const dob = data.dateOfBirth ? `, born ${data.dateOfBirth}` : "";
+  const gender = data.gender ? `, gender: ${data.gender}` : "";
+  const budgetApp =
+    data.usesBudgetApp === undefined
+      ? ""
+      : data.usesBudgetApp
+        ? `, budget app: ${data.budgetAppName ?? "unspecified"}`
+        : ", no budget app";
+
+  const fallback = `Registration complete for ${name}${dob}${gender}${budgetApp}. Welcome!`;
+
+  const prompt = `Create a warm, concise welcome message for a user who completed registration.
+Include their name and any provided details. Keep it under 40 words and avoid bullet points.
+Details:
+- Name: ${name}
+- Date of birth: ${data.dateOfBirth ?? "not provided"}
+- Gender: ${data.gender ?? "not provided"}
+- Uses budget app: ${
+    data.usesBudgetApp === undefined ? "not provided" : data.usesBudgetApp
+  }
+- Budget app name: ${data.budgetAppName ?? "not provided"}`;
+
+  try {
+    return await createChatCompletion(prompt);
+  } catch (error) {
+    console.error("Failed to generate welcome message:", error);
+    return fallback;
   }
 }
 
